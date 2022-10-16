@@ -1,9 +1,10 @@
 let frames = [];
-let button, canvas, ctx;
-let cssVideoResolutionSet = false;
+let button, canvas, ctx, framerate, cssVideoAnimationLength;
 let keyFramesList = [];
 
 const VIDEO_SCALING_FACTOR = 10;
+const DESIRED_FRAMERATE = 30;
+
 
 document.addEventListener('DOMContentLoaded', () => {
     button = document.querySelector('button');
@@ -18,15 +19,14 @@ document.addEventListener('DOMContentLoaded', () => {
     button.onclick = async () => extractFrames();
 })
 
-function mapPixelsToBoxShadowDeclaration(pixels) {
-    const width = Math.sqrt(pixels.length);
+function mapPixelsToBoxShadowDeclaration(width, height, pixels) {
 
     const boxShadowPixels = [];
     [...Array(Math.ceil(pixels.length / 4)).keys()].forEach(i => {
         const [r, g, b, a] = pixels.slice(i * 4, (i + 1) * 4)
 
         const x = i % width;
-        const y = Math.floor(i / width);
+        const y = Math.floor(i  / width);
 
         boxShadowPixels.push(`${x}px ${y}px rgb(${r},${g},${b},${a})`);
     })
@@ -42,15 +42,7 @@ const extractPixelsFromFrame = bitmap => {
     ctx.drawImage(bitmap, 0, 0);
     const pixels = ctx.getImageData(0, 0, w, h).data;
 
-    keyFramesList.push(mapPixelsToBoxShadowDeclaration(pixels));
-};
-
-const setCssVideoResolution = (calculatedWidth, calculatedHeight) => {
-    if (cssVideoResolutionSet) return;
-
-    let cssVideo = document.querySelector('.css-video');
-    cssVideo.style.width = calculatedWidth;
-    cssVideo.style.height = calculatedHeight;
+    keyFramesList.push(mapPixelsToBoxShadowDeclaration(w,h,pixels));
 };
 
 const readChunk = async (reader) => {
@@ -62,7 +54,6 @@ const readChunk = async (reader) => {
 
             let calculatedWidth = value.codedWidth / VIDEO_SCALING_FACTOR;
             let calculatedHeight = value.codedHeight / VIDEO_SCALING_FACTOR;
-            setCssVideoResolution(calculatedWidth, calculatedHeight);
 
             const bitmap = await createImageBitmap(value, {
                 resizeWidth: calculatedWidth,
@@ -82,33 +73,56 @@ const readChunk = async (reader) => {
         });
 };
 
-const createKeyFramesDeclaration = () => {
-    let totalFramesLength = keyFramesList.length;
-    keyFramesList.map((element, index) => {
+const createKeyFramesDeclaration = (usableAmountOfKeyFrames) => {
+    let totalFramesLength = usableAmountOfKeyFrames.length;
+
+    usableAmountOfKeyFrames = usableAmountOfKeyFrames.map((element, index) => {
         let keyFramePercentage = parseFloat(String(index/totalFramesLength)).toFixed(2);
-        return keyFramePercentage+'% {'+element+');'
+        return keyFramePercentage+'% { box-shadow: '+element+'}'
     })
 
     const cssMovieKeyframes = document.createElement('style');
-    const rules = document.createTextNode('@-webkit-keyframes css-movie {' + keyFramesList.join(' ')+ '}');
-    console.log(rules);
+    let keyFramesDeclaration = '@keyframes css-movie {' + usableAmountOfKeyFrames.join(' ')+ '}';
+    const rules = document.createTextNode(keyFramesDeclaration);
+
+    cssVideoAnimationLength = (usableAmountOfKeyFrames.length / DESIRED_FRAMERATE)*100;
+
     cssMovieKeyframes.appendChild(rules);
     document.getElementsByTagName("head")[0].appendChild(cssMovieKeyframes);
 };
 
+const reduceFrameRateForKeyFrames = () => {
+    const ratio = Math.ceil(framerate / DESIRED_FRAMERATE);
+    return keyFramesList.filter((value, index) => (index % ratio == 0));
+};
+
+const animateKeyFrames = () => {
+    document.querySelector('.css-video').style.animation = `css-movie ${cssVideoAnimationLength}s steps(1, end)`;
+};
+
 const extractFrames = async () => {
     const track = await getVideoTrack();
+
+    framerate = track.getSettings().frameRate;
+
     const processor = new MediaStreamTrackProcessor(track);
     const reader = processor.readable.getReader();
 
     await readChunk(reader);
-    createKeyFramesDeclaration();
+
+    //TODO reduce framerate beforehands -> this is imperformant as hell
+    console.log(frames.length)
+    const usableAmountOfKeyFrames = reduceFrameRateForKeyFrames();
+    console.log(usableAmountOfKeyFrames.length)
+    createKeyFramesDeclaration(usableAmountOfKeyFrames);
+
+    animateKeyFrames();
 };
 
 async function getVideoTrack() {
     const video = document.createElement("video");
     video.crossOrigin = "anonymous";
-    video.src = "https://upload.wikimedia.org/wikipedia/commons/a/a4/BBH_gravitational_lensing_of_gw150914.webm";
+    video.src = "https://upload.wikimedia.org/wikipedia/commons/e/e4/6-step_example.webm";
     document.body.append(video);
     await video.play();
     const [track] = video.captureStream().getVideoTracks();

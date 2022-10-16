@@ -3,6 +3,8 @@ video,canvas, .css-video {
 }
 
 .css-video {
-    transform: scale(10);
+    width: 1px;
+    height: 1px;
+    transform: scale(20);
     background: transparent;
 }
