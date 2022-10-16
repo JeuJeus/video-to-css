@@ -1,52 +1,108 @@
 let frames = [];
-let button, select, canvas, ctx;
+let button, canvas, ctx;
+let cssVideoResolutionSet = false;
+let keyFramesList = [];
+
+const VIDEO_SCALING_FACTOR = 10;
 
 document.addEventListener('DOMContentLoaded', () => {
-    button = document.querySelector("button");
-    select = document.querySelector("select");
-    canvas = document.querySelector("canvas");
-    ctx = canvas.getContext("2d");
+    button = document.querySelector('button');
+    canvas = document.querySelector('canvas');
+    ctx = canvas.getContext('2d');
 
-    button.onclick = async () => await extractFrames();
+    if (!window.MediaStreamTrackProcessor) {
+        console.error("your browser doesn't support this API yet");
+        return;
+    }
+
+    button.onclick = async () => extractFrames();
 })
 
-async function extractFrames() {
-    if (window.MediaStreamTrackProcessor) {
-        let stopped = false;
-        const track = await getVideoTrack();
-        const processor = new MediaStreamTrackProcessor(track);
-        const reader = processor.readable.getReader();
-        readChunk();
+function mapPixelsToBoxShadowDeclaration(pixels) {
+    const width = Math.sqrt(pixels.length);
 
-        function readChunk() {
-            reader.read().then(async ({done, value}) => {
-                if (value) {
-                    const bitmap = await createImageBitmap(value);
-                    const index = frames.length;
-                    frames.push(bitmap);
-                    select.append(new Option("Frame #" + (index + 1), index));
-                    value.close();
-                }
-                if (!done && !stopped) {
-                    readChunk();
-                } else {
-                    select.disabled = false;
-                }
-            });
-        }
+    const boxShadowPixels = [];
+    [...Array(Math.ceil(pixels.length / 4)).keys()].forEach(i => {
+        const [r, g, b, a] = pixels.slice(i * 4, (i + 1) * 4)
 
-        button.onclick = (evt) => stopped = true;
-        button.textContent = "stop";
-    } else {
-        console.error("your browser doesn't support this API yet");
-    }
+        const x = i % width;
+        const y = Math.floor(i / width);
+
+        boxShadowPixels.push(`${x}px ${y}px rgb(${r},${g},${b},${a})`);
+    })
+
+    return boxShadowPixels.join(',') + ';';
 }
 
-select.onchange = (evt) => {
-    const frame = frames[select.value];
-    canvas.width = frame.width;
-    canvas.height = frame.height;
-    ctx.drawImage(frame, 0, 0);
+const extractPixelsFromFrame = bitmap => {
+    const {width: w, height: h} = bitmap;
+    const canvas = new OffscreenCanvas(w, h);
+    const ctx = canvas.getContext('2d');
+
+    ctx.drawImage(bitmap, 0, 0);
+    const pixels = ctx.getImageData(0, 0, w, h).data;
+
+    keyFramesList.push(mapPixelsToBoxShadowDeclaration(pixels));
+};
+
+const setCssVideoResolution = (calculatedWidth, calculatedHeight) => {
+    if (cssVideoResolutionSet) return;
+
+    let cssVideo = document.querySelector('.css-video');
+    cssVideo.style.width = calculatedWidth;
+    cssVideo.style.height = calculatedHeight;
+};
+
+const readChunk = async (reader) => {
+    await reader
+        .read()
+        .then(async ({done, value}) => {
+            if (!value) return;
+
+
+            let calculatedWidth = value.codedWidth / VIDEO_SCALING_FACTOR;
+            let calculatedHeight = value.codedHeight / VIDEO_SCALING_FACTOR;
+            setCssVideoResolution(calculatedWidth, calculatedHeight);
+
+            const bitmap = await createImageBitmap(value, {
+                resizeWidth: calculatedWidth,
+                resizeHeight: calculatedHeight,
+                resizeQuality: "pixelated"
+            });
+
+            //TODO introduce frame skipping -> limit framerate
+            extractPixelsFromFrame(bitmap);
+
+            frames.push(bitmap);
+
+            value.close();
+
+            if (done) return;
+            await readChunk(reader);
+        });
+};
+
+const createKeyFramesDeclaration = () => {
+    let totalFramesLength = keyFramesList.length;
+    keyFramesList.map((element, index) => {
+        let keyFramePercentage = parseFloat(String(index/totalFramesLength)).toFixed(2);
+        return keyFramePercentage+'% {'+element+');'
+    })
+
+    const cssMovieKeyframes = document.createElement('style');
+    const rules = document.createTextNode('@-webkit-keyframes css-movie {' + keyFramesList.join(' ')+ '}');
+    console.log(rules);
+    cssMovieKeyframes.appendChild(rules);
+    document.getElementsByTagName("head")[0].appendChild(cssMovieKeyframes);
+};
+
+const extractFrames = async () => {
+    const track = await getVideoTrack();
+    const processor = new MediaStreamTrackProcessor(track);
+    const reader = processor.readable.getReader();
+
+    await readChunk(reader);
+    createKeyFramesDeclaration();
 };
 
 async function getVideoTrack() {
@@ -56,7 +112,7 @@ async function getVideoTrack() {
     document.body.append(video);
     await video.play();
     const [track] = video.captureStream().getVideoTracks();
-    video.onended = (evt) => track.stop();
+    video.onended = () => track.stop();
     return track;
 }
 
