@@ -5,6 +5,6 @@ video,canvas, .css-video {
 .css-video {
     width: 1px;
     height: 1px;
-    transform: scale(20);
+    transform: scale(10);
     background: transparent;
 }

@@ -2,7 +2,7 @@ let frames = [];
 let button, canvas, ctx, framerate, cssVideoAnimationLength;
 let keyFramesList = [];
 
-const VIDEO_SCALING_FACTOR = 10;
+const VIDEO_SCALING_FACTOR = 5;
 const DESIRED_FRAMERATE = 30;
 
 
