@@ -1,21 +1,16 @@
-let button, canvas, ctx, framerate, cssVideoAnimationLength;
+let canvas, ctx, framerate, cssVideoAnimationLength;
 let boxShadowKeyFramesList = [];
 
-const VIDEO_SCALING_FACTOR = 5;
 const DESIRED_FRAMERATE = 30;
 
 
 document.addEventListener('DOMContentLoaded', () => {
-    button = document.querySelector('#playback-button');
     canvas = document.querySelector('#playback-canvas');
     ctx = canvas.getContext('2d');
 
     if (!window.MediaStreamTrackProcessor) {
         document.querySelector('#not-supported-warning').style.display = 'unset';
-        return;
     }
-
-    button.onclick = async () => extractFrames();
 })
 
 const mapPixelsToBoxShadowDeclaration = (width, height, pixels) => {
@@ -46,14 +41,14 @@ const extractPixelsFromFrame = bitmap => {
     boxShadowKeyFramesList.push(mapPixelsToBoxShadowDeclaration(w, h, pixels));
 };
 
-const readAndProcessFrames = async (reader) => {
+const readAndProcessFrames = async (reader,videoScalingFactor) => {
     await reader
         .read()
         .then(async ({done, value}) => {
             if (!value) return;
 
-            const calculatedWidth = value.codedWidth / VIDEO_SCALING_FACTOR;
-            const calculatedHeight = value.codedHeight / VIDEO_SCALING_FACTOR;
+            const calculatedWidth = value.codedWidth / videoScalingFactor;
+            const calculatedHeight = value.codedHeight / videoScalingFactor;
             const bitmap = await createImageBitmap(value, {
                 resizeWidth: calculatedWidth,
                 resizeHeight: calculatedHeight,
@@ -66,7 +61,7 @@ const readAndProcessFrames = async (reader) => {
             value.close();
 
             if (done) return;
-            await readAndProcessFrames(reader);
+            await readAndProcessFrames(reader,videoScalingFactor);
         });
 };
 
@@ -80,13 +75,13 @@ function mapShadowPixelsToBoxShadow(usableAmountOfKeyFrames, totalFramesLength) 
         });
 }
 
-function addBoxShadowFramesAsKeyframesToStyles(usableAmountOfKeyFrames) {
+const addBoxShadowFramesAsKeyframesToStyles = usableAmountOfKeyFrames => {
     const cssMovieKeyframes = document.createElement('style');
     const keyFramesDeclaration = '@keyframes css-movie {' + usableAmountOfKeyFrames.join(' ') + '}';
     const rules = document.createTextNode(keyFramesDeclaration);
     cssMovieKeyframes.appendChild(rules);
     document.getElementsByTagName("head")[0].appendChild(cssMovieKeyframes);
-}
+};
 
 const keyFrameListToStyleDeclaration = (usableAmountOfKeyFrames) => {
     let totalFramesLength = usableAmountOfKeyFrames.length;
@@ -106,11 +101,11 @@ const animateKeyFrames = () => {
 
 const setFrameRateFromVideoTrack = track => framerate = track.getSettings().frameRate;
 
-const getVideoTrack = async () => {
+const getVideoTrack = async (src) => {
     //TODO introduce video upload?
     const video = document.querySelector("#playback-video");
     video.crossOrigin = "anonymous";
-    video.src = "https://upload.wikimedia.org/wikipedia/commons/e/e4/6-step_example.webm";
+    video.src = src;
     document.body.append(video);
     await video.play();
     const [track] = video.captureStream().getVideoTracks();
@@ -118,15 +113,15 @@ const getVideoTrack = async () => {
     return track;
 };
 
-const extractFrames = async () => {
-    const track = await getVideoTrack();
+const extractFrames = async (src,videoScalingFactor) => {
+    const track = await getVideoTrack(src);
 
     setFrameRateFromVideoTrack(track);
 
     const processor = new MediaStreamTrackProcessor(track);
     const reader = processor.readable.getReader();
 
-    await readAndProcessFrames(reader);
+    await readAndProcessFrames(reader,videoScalingFactor);
 
     //TODO reduce framerate beforehands -> this is imperformant as hell
     const usableKeyFrameAmount = reduceFrameRateForKeyFrames();

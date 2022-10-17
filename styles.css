@@ -2,7 +2,19 @@ video,canvas, .css-video {
     max-width: 100%
 }
 
+.wrapper {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+}
+
 .css-video {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 1px;
     height: 1px;
     transform: scale(10);
