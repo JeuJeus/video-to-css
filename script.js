@@ -1,6 +1,5 @@
-let frames = [];
 let button, canvas, ctx, framerate, cssVideoAnimationLength;
-let keyFramesList = [];
+let boxShadowKeyFramesList = [];
 
 const VIDEO_SCALING_FACTOR = 5;
 const DESIRED_FRAMERATE = 30;
@@ -44,7 +43,7 @@ const extractPixelsFromFrame = bitmap => {
     ctx.drawImage(bitmap, 0, 0);
     const pixels = ctx.getImageData(0, 0, w, h).data;
 
-    keyFramesList.push(mapPixelsToBoxShadowDeclaration(w, h, pixels));
+    boxShadowKeyFramesList.push(mapPixelsToBoxShadowDeclaration(w, h, pixels));
 };
 
 const readAndProcessFrames = async (reader) => {
@@ -52,8 +51,6 @@ const readAndProcessFrames = async (reader) => {
         .read()
         .then(async ({done, value}) => {
             if (!value) return;
-
-            console.log(value)
 
             const calculatedWidth = value.codedWidth / VIDEO_SCALING_FACTOR;
             const calculatedHeight = value.codedHeight / VIDEO_SCALING_FACTOR;
@@ -66,8 +63,6 @@ const readAndProcessFrames = async (reader) => {
             //TODO introduce frame skipping -> limit framerate
             extractPixelsFromFrame(bitmap);
 
-            frames.push(bitmap);
-
             value.close();
 
             if (done) return;
@@ -75,27 +70,34 @@ const readAndProcessFrames = async (reader) => {
         });
 };
 
-const createKeyFramesDeclaration = (usableAmountOfKeyFrames) => {
-    let totalFramesLength = usableAmountOfKeyFrames.length;
+const setCssAnimationLength = usableAmountOfKeyFrames => cssVideoAnimationLength = (usableAmountOfKeyFrames.length / DESIRED_FRAMERATE) * 100;
 
-    usableAmountOfKeyFrames = usableAmountOfKeyFrames.map((element, index) => {
-        let keyFramePercentage = parseFloat(String(index / totalFramesLength)).toFixed(2);
-        return keyFramePercentage + '% { box-shadow: ' + element + '}'
-    })
+function mapShadowPixelsToBoxShadow(usableAmountOfKeyFrames, totalFramesLength) {
+    return usableAmountOfKeyFrames
+        .map((element, index) => {
+            let keyFramePercentage = parseFloat(String(index / totalFramesLength)).toFixed(2);
+            return keyFramePercentage + '% { box-shadow: ' + element + '}'
+        });
+}
 
+function addBoxShadowFramesAsKeyframesToStyles(usableAmountOfKeyFrames) {
     const cssMovieKeyframes = document.createElement('style');
-    let keyFramesDeclaration = '@keyframes css-movie {' + usableAmountOfKeyFrames.join(' ') + '}';
+    const keyFramesDeclaration = '@keyframes css-movie {' + usableAmountOfKeyFrames.join(' ') + '}';
     const rules = document.createTextNode(keyFramesDeclaration);
-
-    cssVideoAnimationLength = (usableAmountOfKeyFrames.length / DESIRED_FRAMERATE) * 100;
-
     cssMovieKeyframes.appendChild(rules);
     document.getElementsByTagName("head")[0].appendChild(cssMovieKeyframes);
+}
+
+const keyFrameListToStyleDeclaration = (usableAmountOfKeyFrames) => {
+    let totalFramesLength = usableAmountOfKeyFrames.length;
+    usableAmountOfKeyFrames = mapShadowPixelsToBoxShadow(usableAmountOfKeyFrames, totalFramesLength);
+    addBoxShadowFramesAsKeyframesToStyles(usableAmountOfKeyFrames);
+    setCssAnimationLength(usableAmountOfKeyFrames);
 };
 
 const reduceFrameRateForKeyFrames = () => {
-    const ratio = Math.ceil(framerate / DESIRED_FRAMERATE);
-    return keyFramesList.filter((value, index) => (index % ratio == 0));
+    const skipRatio = Math.ceil(framerate / DESIRED_FRAMERATE);
+    return boxShadowKeyFramesList.filter((value, index) => (index % skipRatio === 0));
 };
 
 const animateKeyFrames = () => {
@@ -106,7 +108,7 @@ const setFrameRateFromVideoTrack = track => framerate = track.getSettings().fram
 
 const getVideoTrack = async () => {
     //TODO introduce video upload?
-    const video = document.createElement("video");
+    const video = document.querySelector("#playback-video");
     video.crossOrigin = "anonymous";
     video.src = "https://upload.wikimedia.org/wikipedia/commons/e/e4/6-step_example.webm";
     document.body.append(video);
@@ -127,8 +129,8 @@ const extractFrames = async () => {
     await readAndProcessFrames(reader);
 
     //TODO reduce framerate beforehands -> this is imperformant as hell
-    const usableAmountOfKeyFrames = reduceFrameRateForKeyFrames();
-    createKeyFramesDeclaration(usableAmountOfKeyFrames);
+    const usableKeyFrameAmount = reduceFrameRateForKeyFrames();
+    keyFrameListToStyleDeclaration(usableKeyFrameAmount);
 
     animateKeyFrames();
 };
