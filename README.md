@@ -14,3 +14,8 @@ To playback the Animation a CSS animation containing the keyframes is added in.
 ## Requirements
 Currently the functionality of extracting Frames is based on the _MediaStreamTrackProcessor_-API.  
 **Therefore only recent Versions of Chromium based Browsers (>= v94) are supported!**
+
+## Example Result
+Input | Output
+:-------------------------:|:-------------------------:
+![Input](img/example-input.png)   |  ![Output](img/example-output.png)
