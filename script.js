@@ -67,13 +67,11 @@ const readAndProcessFrames = async (reader,videoScalingFactor) => {
 
 const setCssAnimationLength = usableAmountOfKeyFrames => cssVideoAnimationLength = (usableAmountOfKeyFrames.length / DESIRED_FRAMERATE) * 100;
 
-function mapShadowPixelsToBoxShadow(usableAmountOfKeyFrames, totalFramesLength) {
-    return usableAmountOfKeyFrames
-        .map((element, index) => {
-            let keyFramePercentage = parseFloat(String(index / totalFramesLength)).toFixed(2);
-            return keyFramePercentage + '% { box-shadow: ' + element + '}'
-        });
-}
+const mapShadowPixelsToBoxShadow = (usableAmountOfKeyFrames, totalFramesLength) => usableAmountOfKeyFrames
+    .map((element, index) => {
+        let keyFramePercentage = parseFloat(String(index / totalFramesLength)).toFixed(2);
+        return keyFramePercentage + '% { box-shadow: ' + element + '}'
+    });
 
 const addBoxShadowFramesAsKeyframesToStyles = usableAmountOfKeyFrames => {
     const cssMovieKeyframes = document.createElement('style');
