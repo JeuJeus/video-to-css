@@ -1,0 +1,322 @@
+\documentclass[xcolor=dvipsnames,10pt]{beamer}
+\usepackage[utf8]{inputenc}
+\usetheme{Madrid}
+\useoutertheme{infolines}
+\useinnertheme{circles}
+
+\setbeamerfont{headline}{size=\footnotesize}
+\setbeamerfont{section in head/foot}{size=\tiny}
+
+\usepackage{lmodern}
+\usepackage[german]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{csquotes}
+\usepackage{multicol}
+\usepackage{multirow}
+\usepackage[export]{adjustbox}
+
+\definecolor{KB-Red}{HTML}{aa0a37}
+\definecolor{KB-LightRed}{HTML}{d70b45}
+
+\setbeamercolor{palette primary}{bg=KB-Red,fg=white}
+\setbeamercolor{palette secondary}{bg=KB-LightRed,fg=white}
+\setbeamercolor{palette tertiary}{bg=KB-Red,fg=white}
+\setbeamercolor{palette quaternary}{bg=KB-Red,fg=white}
+\setbeamercolor{structure}{fg=KB-Red}
+\setbeamercolor{section in toc}{fg=KB-Red}
+\setbeamercolor{subsection in head/foot}{bg=KB-LightRed,fg=white}
+
+\setbeamertemplate{frametitle}{%
+  \nointerlineskip
+    \begin{beamercolorbox}[sep=.5ex,wd=\paperwidth,leftskip=.5cm,rightskip=0cm]{frametitle}%
+      \usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle\\
+      \usebeamerfont{framesubtitle}\usebeamercolor[fg]{framesubtitle}\insertframesubtitle
+    \end{beamercolorbox}%
+}
+
+\usepackage{listings}
+\usepackage{inconsolata}
+\usepackage{jslistings}
+\usepackage{color}
+
+\defbeamertemplate{itemize item}{image}{\small\includegraphics[height=1.6ex]{logo.png}}
+\defbeamertemplate{itemize subitem}{image}{\scriptsize\includegraphics[height=1.6ex]{logo.png}}
+\defbeamertemplate{itemize subsubitem}{image}{\tiny\includegraphics[height=1.6ex]{logo.png}}
+
+\setbeamertemplate{itemize item}[image]
+\setbeamertemplate{itemize subitem}[image]
+\setbeamertemplate{itemize subsubitem}[image]
+
+\author{Julius Sebastian Figge}
+\title[inefficient+imperformant video rendering]{
+	An Introduction:\\\enquote{The most inefficient \& imperformant Video-Rendering-Engine possible}}
+\setbeamercovered{transparent}
+\setbeamertemplate{navigation symbols}{}
+\date{\today}
+\subject{Thema}
+\titlegraphic{\includegraphics[width=2cm]{kb-Logo.jpg}}
+
+\usepackage[backend=biber,
+style=alphabetic,
+]{biblatex}
+\addbibresource{bib/library.bib}
+
+\setcounter{tocdepth}{2}
+
+%option to add notes
+\usepackage{pgfpages}
+%\setbeameroption{show notes on second screen=right}
+
+%translate section to Abschnitt
+\selectlanguage{german}
+\newtranslation[to=german]{Section}{Abschnitt}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+
+\begin{frame}
+\titlepage
+\note[item]{Some of you may have already heard about that nonsense project of mine}
+\note[item]{presentation title : \enquote{\inserttitle}}
+\note[item]{Those of you knowing what this is about please do not spoiler - the others can guess}
+\note[item]{Sourcecode Repository \@Github}
+\end{frame}
+
+\begin{frame}
+	\tableofcontents
+\end{frame}
+
+\section{Code}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=on document load]
+				document.addEventListener('DOMContentLoaded', () => {
+					canvas = document.querySelector('#playback-canvas');
+					ctx = canvas.getContext('2d');
+
+					if (!window.MediaStreamTrackProcessor) {
+						document.querySelector('#not-supported-warning').style.display = 'unset';
+					}
+				})
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=extractFrames()]
+			const extractFrames = async (src,videoScalingFactor) => {
+				const track = await getVideoTrack(src);
+
+				setFrameRateFromVideoTrack(track);
+
+				const processor = new MediaStreamTrackProcessor(track);
+				const reader = processor.readable.getReader();
+
+				await readAndProcessFrames(reader,videoScalingFactor);
+
+				//TODO reduce framerate beforehands -> this is imperformant as hell
+				const usableKeyFrameAmount = reduceFrameRateForKeyFrames();
+				keyFrameListToStyleDeclaration(usableKeyFrameAmount);
+
+				animateKeyFrames();
+			};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=getVideoTrack()]
+			const getVideoTrack = async (src) => {
+				//TODO introduce video upload?
+				const video = document.querySelector("#playback-video");
+				video.crossOrigin = "anonymous";
+				video.src = src;
+				document.body.append(video);
+				await video.play();
+				const [track] = video.captureStream().getVideoTracks();
+				video.onended = () => track.stop();
+				return track;
+			};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=readAndProcessFrames()]
+			const readAndProcessFrames = async (reader,videoScalingFactor) => {
+				await reader.read().then(async ({done, value}) => {
+					if (!value) return;
+					const calculatedWidth = value.codedWidth / videoScalingFactor;
+					const calculatedHeight = value.codedHeight / videoScalingFactor;
+					const bitmap = await createImageBitmap(value, {
+						resizeWidth: calculatedWidth,
+						resizeHeight: calculatedHeight,
+						resizeQuality: "pixelated"
+					});
+					extractPixelsFromFrame(bitmap);
+					value.close();
+					if (done) return;
+					await readAndProcessFrames(reader,videoScalingFactor);
+				});
+			};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=extractPixelsFromFrame()]
+				const extractPixelsFromFrame = bitmap => {
+					const {width: w, height: h} = bitmap;
+					const canvas = new OffscreenCanvas(w, h);
+					const ctx = canvas.getContext('2d');
+
+					ctx.drawImage(bitmap, 0, 0);
+					const pixels = ctx.getImageData(0, 0, w, h).data;
+
+					boxShadowKeyFramesList.push(mapPixelsToBoxShadowDeclaration(w, h, pixels));
+				};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=mapPixelsToBoxShadowDeclaration()]
+				const mapPixelsToBoxShadowDeclaration = (width, height, pixels) => {
+					const boxShadowPixels = [];
+
+					//extract r,g,b,a values from array -> r1,g1,b1,a1,r2,g2,b2,a2
+					[...Array(Math.ceil(pixels.length / 4)).keys()]
+					.forEach(i => {
+						const [r, g, b, a] = pixels.slice(i * 4, (i + 1) * 4);
+
+						const x = i % width;
+						const y = Math.floor(i / width);
+
+						boxShadowPixels.push(`${x}px ${y}px rgb(${r},${g},${b},${a})`);
+					})
+
+					return boxShadowPixels.join(',') + ';';
+				};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=reduceFrameRateForKeyFrames()]
+				const reduceFrameRateForKeyFrames = () => {
+					const skipRatio = Math.ceil(framerate / DESIRED_FRAMERATE);
+					return boxShadowKeyFramesList.filter((value, index) => (index % skipRatio === 0));
+				};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=keyFrameListToStyleDeclaration()]
+			const keyFrameListToStyleDeclaration = (usableAmountOfKeyFrames) => {
+				let totalFramesLength = usableAmountOfKeyFrames.length;
+				usableAmountOfKeyFrames = mapShadowPixelsToBoxShadow(usableAmountOfKeyFrames, totalFramesLength);
+				addBoxShadowFramesAsKeyframesToStyles(usableAmountOfKeyFrames);
+				setCssAnimationLength(usableAmountOfKeyFrames);
+			};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=mapShadowPixelsToBoxShadow()]
+				function mapShadowPixelsToBoxShadow(usableAmountOfKeyFrames, totalFramesLength) {
+					return usableAmountOfKeyFrames
+					.map((element, index) => {
+						let keyFramePercentage = parseFloat(String(index / totalFramesLength)).toFixed(2);
+						return keyFramePercentage + '% { box-shadow: ' + element + '}'
+					});
+				}
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=addBoxShadowFramesAsKeyframesToStyles()]
+				const addBoxShadowFramesAsKeyframesToStyles = usableAmountOfKeyFrames => {
+					const cssMovieKeyframes = document.createElement('style');
+					const keyFramesDeclaration = '@keyframes css-movie {' + usableAmountOfKeyFrames.join(' ') + '}';
+					const rules = document.createTextNode(keyFramesDeclaration);
+					cssMovieKeyframes.appendChild(rules);
+					document.getElementsByTagName("head")[0].appendChild(cssMovieKeyframes);
+				};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=JavaScript, caption=animateKeyFrames()]
+				const animateKeyFrames = () => {
+					document.querySelector('.css-video').style.animation = `css-movie ${cssVideoAnimationLength}s steps(1, end)`;
+				};
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+\begin{frame}[fragile]{\secname\footnote{SourceCode: \cite{videoToCss}}}
+	\begin{center}
+		\begin{minipage}{1\textwidth}
+			\begin{lstlisting}[language=HTML, caption=animateKeyFrames()]
+				<h1 id="not-supported-warning" style="color: red; display: none">Your browser is not supported! Please refer to the
+				<a href="./README.md">Readme</a> and use a recent Chromium based Browser.</h1>
+
+				<div class="wrapper">
+					<div class="videos">
+						<canvas id="playback-canvas"></canvas>
+						<video id="playback-video"></video>
+						<div class="css-video">
+					</div>
+				</div>
+				<div class="buttons">
+					<button id="playback-button" onclick="extractFrames('$URL',12)">$EXAMPLE_VIDEO</button>
+				</div>
+			\end{lstlisting}
+		\end{minipage}
+	\end{center}
+\end{frame}
+
+\section{Demo}
+\begin{frame}{\secname}
+	\center \huge LiveDemo!\footnote{\cite{liveDemo}}
+\end{frame}
+
+\section*{End}
+\begin{frame}{\secname}
+	\center \huge End - Questions?
+\end{frame}
+
+\begin{frame}
+	\printbibliography
+\end{frame}
+
+\end{document}
